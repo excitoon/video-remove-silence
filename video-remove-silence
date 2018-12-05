@@ -4,6 +4,7 @@ import argparse
 import collections
 import math
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -20,6 +21,7 @@ parser.add_argument('--constant', type=float, default=0, help='duration constant
 parser.add_argument('--sublinear', type=float, default=0, help='duration sublinear transform factor')
 parser.add_argument('--linear', type=float, default=0.1, help='duration linear transform factor')
 parser.add_argument('--save-silence', type=str, help='filename for saving silence')
+parser.add_argument('--recalculate-time-in-description', type=str, help='path to text file')
 args = parser.parse_args()
 
 def find_silences(filename):
@@ -161,6 +163,31 @@ width, height = ffprobe.get_resolution(args.path)
 
 def closest_frames(duration, frame_rate):
     return int((duration + 1 / frame_rate / 2) // (1 / frame_rate))
+
+if args.recalculate_time_in_description:
+    with open(args.recalculate_time_in_description, encoding='utf-8') as description_file:
+        description = description_file.read()
+    time_codes = {}
+    for time_code, h, m, s in re.findall('((\d+):(\d\d):(\d\d))', description):
+        time_codes[time_code] = int(h)*3600+int(m)*60+int(s)
+    current_position = 0
+    for start, end, is_silence in regions:
+        start_frame = int(start * frame_rate)
+        end_frame = frames if end is None else int(end * frame_rate)
+        duration = (end_frame - start_frame) / frame_rate
+        if is_silence:
+            new_duration = transform_duration(duration)
+        else:
+            new_duration = duration
+        for time_code, time_value in list(time_codes.items()):
+            if start <= time_value < end:
+                time_codes[time_code] = int((time_value-start)/duration*new_duration+current_position)
+        current_position += new_duration
+    for time_code, time_value in sorted(time_codes.items(), key=lambda x: x[1], reverse=True):
+        description = description.replace(time_code, '{:d}:{:02d}:{:02d}'.format(time_value // 3600, (time_value // 60) % 60, time_value % 60))
+    description_base_name, description_extension = os.path.splitext(args.recalculate_time_in_description)
+    with open('{}_result{}'.format(*os.path.splitext(args.recalculate_time_in_description)), 'w', encoding='utf-8') as description_file:
+        description_file.write(description)
 
 print('Processing {} frames...'.format(frames))
 command = [ 'ffmpeg', '-i', args.path, '-f', 'image2pipe', '-pix_fmt', 'rgb24', '-vcodec', 'rawvideo', '-' ]
