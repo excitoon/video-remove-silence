@@ -158,7 +158,12 @@ def format_offset(offset):
 
 frames = ffprobe.get_frames(args.path)
 duration = ffprobe.get_duration(args.path)
-frame_rate = frames / duration # N.B. Possibly we need to simply read frame rate instead of calculating it.
+if frames:
+    frame_rate = frames / duration # N.B. Possibly we need to simply read frame rate instead of calculating it.
+else:
+    frame_rate = ffprobe.get_frame_rate(args.path)
+    frames = int(frame_rate * duration)
+
 width, height = ffprobe.get_resolution(args.path)
 
 def closest_frames(duration, frame_rate):
@@ -193,13 +198,13 @@ print('Processing {} frames...'.format(frames))
 command = [ 'ffmpeg', '-i', args.path, '-f', 'image2pipe', '-pix_fmt', 'rgb24', '-vcodec', 'rawvideo', '-' ]
 decoder = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
+decoder.stderr.close()
+
 video_track = tempfile.NamedTemporaryFile(delete=False)
 video_track.close()
 command = [ 'ffmpeg', '-framerate', str(frame_rate), '-s', '{}x{}'.format(width, height), '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-i', '-' ]
 command += [ '-f', 'mp4', '-pix_fmt', 'yuv420p', '-y', video_track.name ]
 encoder = subprocess.Popen(command, stdin=subprocess.PIPE)
-
-decoder.stderr.close()
 
 audio_track = tempfile.NamedTemporaryFile(delete=False)
 audio_track.close()
@@ -288,8 +293,7 @@ encoder.stdin.close()
 encoder.wait()
 assert encoder.returncode == 0
 
-decoder.wait()
-assert decoder.returncode == 0
+decoder.terminate()
 
 name, extension = os.path.splitext(args.path)
 command = [ 'ffmpeg', '-f', 'mp4', '-i', video_track.name, '-f', 'wav', '-i', audio_track.name ]
