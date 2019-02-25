@@ -85,7 +85,10 @@ def find_silences(filename):
         def to_regions(iterable):
             iterator = enumerate(iterable)
             while True:
-                index, value = next(iterator)
+                try:
+                    index, value = next(iterator)
+                except StopIteration:
+                    return
                 if value:
                     start = index
                     while True:
@@ -96,7 +99,7 @@ def find_silences(filename):
                                 break
                         except StopIteration:
                             yield start, index+1
-                            break
+                            return
 
         threshold_frames = int(args.threshold_duration * frame_rate)
         silence_regions = ( (start, end) for start, end in to_regions(is_silence) if end-start >= blend_duration )
