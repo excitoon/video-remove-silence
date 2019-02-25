@@ -10,5 +10,5 @@ video-remove-silence some_file.mp4
 
 ## Dependencies
 
-- Python 3
+- Python 3.5+
 - FFmpeg
