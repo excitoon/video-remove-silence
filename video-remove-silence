@@ -199,7 +199,7 @@ if args.recalculate_time_in_description:
 
 print('Processing {} frames...'.format(frames))
 command = [ 'ffmpeg', '-i', args.path, '-f', 'image2pipe', '-pix_fmt', 'rgb24', '-vcodec', 'rawvideo', '-' ]
-decoder = subprocess.Popen(command, stdout=subprocess.PIPE)
+decoder = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
 video_track = tempfile.NamedTemporaryFile(delete=False)
 video_track.close()
